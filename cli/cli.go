@@ -48,6 +48,7 @@ type cli struct {
 
 	argnames  []string
 	argvalues []interface{}
+	options   []gojq.CompilerOption
 
 	outputYAMLSeparator bool
 	exitCodeError       error
@@ -234,7 +235,7 @@ Usage:
 	}
 	iter := cli.createInputIter(args)
 	defer iter.Close()
-	code, err := gojq.Compile(query,
+	options := append(cli.options,
 		gojq.WithModuleLoader(gojq.NewModuleLoader(modulePaths)),
 		gojq.WithEnvironLoader(os.Environ),
 		gojq.WithVariables(cli.argnames),
@@ -250,6 +251,7 @@ Usage:
 		),
 		gojq.WithInputIter(iter),
 	)
+	code, err := gojq.Compile(query, options...)
 	if err != nil {
 		if err, ok := err.(interface {
 			QueryParseError() (string, string, string, error)
