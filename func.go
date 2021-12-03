@@ -516,6 +516,19 @@ func funcImplode(v interface{}) interface{} {
 	}
 }
 
+func implode(v []interface{}) interface{} {
+	var sb strings.Builder
+	sb.Grow(len(v))
+	for _, r := range v {
+		if r, ok := toInt(r); ok && 0 <= r && r <= utf8.MaxRune {
+			sb.WriteRune(rune(r))
+		} else {
+			return &funcTypeError{"implode", v}
+		}
+	}
+	return sb.String()
+}
+
 func funcSplit(v interface{}, args []interface{}) interface{} {
 	s, ok := v.(string)
 	if !ok {
@@ -550,19 +563,6 @@ func funcSplit(v interface{}, args []interface{}) interface{} {
 	return xs
 }
 
-func implode(v []interface{}) interface{} {
-	var sb strings.Builder
-	sb.Grow(len(v))
-	for _, r := range v {
-		if r, ok := toInt(r); ok && 0 <= r && r <= utf8.MaxRune {
-			sb.WriteRune(rune(r))
-		} else {
-			return &funcTypeError{"implode", v}
-		}
-	}
-	return sb.String()
-}
-
 func funcToJSON(v interface{}) interface{} {
 	return jsonMarshal(v)
 }
@@ -595,6 +595,32 @@ func funcFormat(v, x interface{}) interface{} {
 	}
 }
 
+var htmlEscaper = strings.NewReplacer(
+	`<`, "&lt;",
+	`>`, "&gt;",
+	`&`, "&amp;",
+	`'`, "&apos;",
+	`"`, "&quot;",
+)
+
+func funcToHTML(v interface{}) interface{} {
+	switch x := funcToString(v).(type) {
+	case string:
+		return htmlEscaper.Replace(x)
+	default:
+		return x
+	}
+}
+
+func funcToURI(v interface{}) interface{} {
+	switch x := funcToString(v).(type) {
+	case string:
+		return url.QueryEscape(x)
+	default:
+		return x
+	}
+}
+
 func funcToCSV(v interface{}) interface{} {
 	return funcToCSVTSV("csv", v, ",", func(s string) string {
 		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
@@ -612,32 +638,6 @@ func funcToTSV(v interface{}) interface{} {
 	return funcToCSVTSV("tsv", v, "\t", func(s string) string {
 		return tsvEscaper.Replace(s)
 	})
-}
-
-func funcToSh(v interface{}) interface{} {
-	var xs []interface{}
-	if w, ok := v.([]interface{}); ok {
-		xs = w
-	} else {
-		xs = []interface{}{v}
-	}
-	var s strings.Builder
-	for i, x := range xs {
-		if i > 0 {
-			s.WriteByte(' ')
-		}
-		switch x := x.(type) {
-		case map[string]interface{}, []interface{}:
-			return &formatShError{x}
-		case string:
-			s.WriteByte('\'')
-			s.WriteString(strings.ReplaceAll(x, "'", `'\''`))
-			s.WriteByte('\'')
-		default:
-			s.WriteString(jsonMarshal(x))
-		}
-	}
-	return s.String()
 }
 
 func funcToCSVTSV(typ string, v interface{}, sep string, escape func(string) string) interface{} {
@@ -671,30 +671,30 @@ func toCSVTSV(typ string, v interface{}, escape func(string) string) (string, er
 	}
 }
 
-var htmlEscaper = strings.NewReplacer(
-	`<`, "&lt;",
-	`>`, "&gt;",
-	`&`, "&amp;",
-	`'`, "&apos;",
-	`"`, "&quot;",
-)
-
-func funcToHTML(v interface{}) interface{} {
-	switch x := funcToString(v).(type) {
-	case string:
-		return htmlEscaper.Replace(x)
-	default:
-		return x
+func funcToSh(v interface{}) interface{} {
+	var xs []interface{}
+	if w, ok := v.([]interface{}); ok {
+		xs = w
+	} else {
+		xs = []interface{}{v}
 	}
-}
-
-func funcToURI(v interface{}) interface{} {
-	switch x := funcToString(v).(type) {
-	case string:
-		return url.QueryEscape(x)
-	default:
-		return x
+	var s strings.Builder
+	for i, x := range xs {
+		if i > 0 {
+			s.WriteByte(' ')
+		}
+		switch x := x.(type) {
+		case map[string]interface{}, []interface{}:
+			return &formatShError{x}
+		case string:
+			s.WriteByte('\'')
+			s.WriteString(strings.ReplaceAll(x, "'", `'\''`))
+			s.WriteByte('\'')
+		default:
+			s.WriteString(jsonMarshal(x))
+		}
 	}
+	return s.String()
 }
 
 func funcToBase64(v interface{}) interface{} {
@@ -1139,11 +1139,6 @@ func funcExp10(v float64) float64 {
 	return math.Pow(10, v)
 }
 
-func funcLgamma(v float64) float64 {
-	v, _ = math.Lgamma(v)
-	return v
-}
-
 func funcFrexp(v interface{}) interface{} {
 	x, ok := toFloat(v)
 	if !ok {
@@ -1160,6 +1155,11 @@ func funcModf(v interface{}) interface{} {
 	}
 	i, f := math.Modf(x)
 	return []interface{}{f, i}
+}
+
+func funcLgamma(v float64) float64 {
+	v, _ = math.Lgamma(v)
+	return v
 }
 
 func funcDrem(l, r float64) float64 {

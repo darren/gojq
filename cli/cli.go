@@ -16,7 +16,7 @@ import (
 
 const name = "gojq"
 
-const version = "0.12.5"
+const version = "0.12.6"
 
 var revision = "HEAD"
 
@@ -242,12 +242,14 @@ Usage:
 		gojq.WithFunction("debug", 0, 0, cli.funcDebug),
 		gojq.WithFunction("stderr", 0, 0, cli.funcStderr),
 		gojq.WithFunction("input_filename", 0, 0,
-			func(interface{}, []interface{}) interface{} {
-				if fname := iter.Name(); fname != "" {
-					return fname
+			func(iter inputIter) func(interface{}, []interface{}) interface{} {
+				return func(interface{}, []interface{}) interface{} {
+					if fname := iter.Name(); fname != "" && (len(args) > 0 || !opts.InputNull) {
+						return fname
+					}
+					return nil
 				}
-				return nil
-			},
+			}(iter),
 		),
 		gojq.WithInputIter(iter),
 	)
